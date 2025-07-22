@@ -1,0 +1,76 @@
+
+✅ Summary: Fixing LIBERO Walkthrough Script Errors on Windows
+
+Context
+-------
+Attempting to run `walkthrough_1.py` for LIBERO on Windows using `robosuite` and `mujoco` raised the following key errors:
+- ModuleNotFoundError: No module named 'robosuite'
+- FileNotFoundError: Could not find module 'mujoco.dll'
+- RuntimeError: invalid value for environment variable MUJOCO_GL: egl
+
+✔ Step-by-Step Fixes
+---------------------
+
+1. Ensure robosuite is installed in the correct Python environment
+------------------------------------------------------------------
+    pip install robosuite
+
+2. Fix robosuite’s expected mujoco.dll location
+-----------------------------------------------
+Manually copy `mujoco.dll` (found in the `mujoco` Python package or system installation) to:
+    <conda-env>\Lib\site-packages\robosuite\utils\mujoco.dll
+
+3. Set MUJOCO_GL environment variable to a supported backend
+-------------------------------------------------------------
+Since `egl` is unsupported on Windows, set it to "glfw":
+    PowerShell:
+        $env:MUJOCO_GL = "glfw"
+
+4. Patch robosuite’s binding_utils.py
+-------------------------------------
+File: `robosuite/utils/binding_utils.py`
+
+- Modify MUJOCO_GL override logic:
+
+    if macros.MUJOCO_GPU_RENDERING:
+        if os.environ.get("MUJOCO_GL", None) is None:
+            if _SYSTEM == "Darwin":
+                os.environ["MUJOCO_GL"] = "cgl"
+            elif _SYSTEM == "Windows":
+                os.environ["MUJOCO_GL"] = "glfw"
+            else:
+                os.environ["MUJOCO_GL"] = "egl"
+
+- Ensure EGL is a valid option on Windows:
+
+    _VALID_MUJOCO_GL = ("enable", "enabled", "on", "true", "1", "glfw", "")
+    if _SYSTEM == "Linux":
+        _VALID_MUJOCO_GL += ("glx", "egl", "osmesa")
+    elif _SYSTEM == "Windows":
+        _VALID_MUJOCO_GL += ("wgl", "egl")
+    elif _SYSTEM == "Darwin":
+        _VALID_MUJOCO_GL += ("cgl",)
+
+5. Verify MuJoCo works independently
+------------------------------------
+Use this test script to validate:
+
+    import mujoco
+    from mujoco import MjModel, MjData
+
+    model = MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body name="box" pos="0 0 0">
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """)
+    data = MjData(model)
+    print("MuJoCo model loaded and data created.")
+
+🟢 Outcome
+----------
+- LIBERO's walkthrough script now runs successfully on Windows.
+- MuJoCo is properly configured for offscreen rendering with `glfw`.
